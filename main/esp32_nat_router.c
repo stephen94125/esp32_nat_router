@@ -1006,6 +1006,42 @@ void init_mdns_service(void)
     };
     mdns_service_add("NAT Router", "_http", "_tcp", 80, serviceTxtData, 1);
     
+    char* mdns_aliases = NULL;
+    get_config_param_str("mdns_aliases", &mdns_aliases);
+    if (mdns_aliases && strlen(mdns_aliases) > 0) {
+        mdns_ip_addr_t addr_ap;
+        addr_ap.addr.type = ESP_IPADDR_TYPE_V4;
+        addr_ap.addr.u_addr.ip4.addr = my_ap_ip;
+        addr_ap.next = NULL;
+
+        char* token = strtok(mdns_aliases, ",");
+        while (token != NULL) {
+            mdns_delegate_hostname_add(token, &addr_ap);
+            ESP_LOGI(TAG, "mDNS alias registered: %s.local", token);
+            token = strtok(NULL, ",");
+        }
+    }
+    if (mdns_aliases) free(mdns_aliases);
+
+    char* mdns_svcs = NULL;
+    get_config_param_str("mdns_svcs", &mdns_svcs);
+    if (mdns_svcs && strlen(mdns_svcs) > 0) {
+        char* token = strtok(mdns_svcs, ",");
+        while (token != NULL) {
+            char svc_str[128];
+            strlcpy(svc_str, token, sizeof(svc_str));
+            char* colon = strchr(svc_str, ':');
+            if (colon) {
+                *colon = '\0';
+                int port = atoi(colon + 1);
+                mdns_service_add(mdns_inst, svc_str, "_tcp", port, NULL, 0);
+                ESP_LOGI(TAG, "mDNS custom service registered: %s port %d", svc_str, port);
+            }
+            token = strtok(NULL, ",");
+        }
+    }
+    if (mdns_svcs) free(mdns_svcs);
+    
     ESP_LOGI(TAG, "mDNS initialized. Hostname: %s.local, Instance: %s", mdns_host, mdns_inst);
     ESP_LOGI(TAG, "mDNS Bind flags -> AP: %d, STA/ETH: %d", (mdns_bind & 1), (mdns_bind & 2));
 

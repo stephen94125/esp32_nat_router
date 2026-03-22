@@ -2653,8 +2653,132 @@ static esp_err_t mdns_get_handler(httpd_req_t *req)
                 esp_timer_start_once(restart_timer, 500000);
                 return ESP_OK;
             }
+
+            /* Add Alias */
+            if (httpd_query_key_value(buf, "add_alias", param, sizeof(param)) == ESP_OK) {
+                preprocess_string(param);
+                if (strlen(param) > 0) {
+                    char* old_aliases = NULL;
+                    get_config_param_str("mdns_aliases", &old_aliases);
+                    char new_aliases[512] = "";
+                    if (old_aliases && strlen(old_aliases) > 0) {
+                        snprintf(new_aliases, sizeof(new_aliases), "%s,%s", old_aliases, param);
+                    } else {
+                        snprintf(new_aliases, sizeof(new_aliases), "%s", param);
+                    }
+                    set_config_param_str("mdns_aliases", new_aliases);
+                    if (old_aliases) free(old_aliases);
+                    
+                    free(buf);
+                    httpd_resp_set_status(req, "303 See Other");
+                    httpd_resp_set_hdr(req, "Location", "/mdns");
+                    httpd_resp_send(req, NULL, 0);
+                    return ESP_OK;
+                }
+            }
+
+            /* Delete Alias */
+            if (httpd_query_key_value(buf, "del_alias", param, sizeof(param)) == ESP_OK) {
+                preprocess_string(param);
+                char* old_aliases = NULL;
+                get_config_param_str("mdns_aliases", &old_aliases);
+                if (old_aliases) {
+                    char new_aliases[512] = "";
+                    char* token = strtok(old_aliases, ",");
+                    bool first = true;
+                    while (token != NULL) {
+                        if (strcmp(token, param) != 0) {
+                            if (!first) strncat(new_aliases, ",", sizeof(new_aliases) - strlen(new_aliases) - 1);
+                            strncat(new_aliases, token, sizeof(new_aliases) - strlen(new_aliases) - 1);
+                            first = false;
+                        }
+                        token = strtok(NULL, ",");
+                    }
+                    set_config_param_str("mdns_aliases", new_aliases);
+                    free(old_aliases);
+                }
+                free(buf);
+                httpd_resp_set_status(req, "303 See Other");
+                httpd_resp_set_hdr(req, "Location", "/mdns");
+                httpd_resp_send(req, NULL, 0);
+                return ESP_OK;
+            }
+
+            /* Add Custom Service */
+            char param_port[32];
+            char param_type[64];
+            char param_custom[64];
+            if (httpd_query_key_value(buf, "add_svc_type", param_type, sizeof(param_type)) == ESP_OK &&
+                httpd_query_key_value(buf, "add_svc_port", param_port, sizeof(param_port)) == ESP_OK) {
+                
+                preprocess_string(param_type);
+                preprocess_string(param_port);
+                
+                if (strcmp(param_type, "custom") == 0 &&
+                    httpd_query_key_value(buf, "add_svc_custom", param_custom, sizeof(param_custom)) == ESP_OK &&
+                    strlen(param_custom) > 0) {
+                    preprocess_string(param_custom);
+                    strlcpy(param_type, param_custom, sizeof(param_type));
+                }
+                
+                if (strlen(param_type) > 0 && strlen(param_port) > 0) {
+                    char* old_svcs = NULL;
+                    get_config_param_str("mdns_svcs", &old_svcs);
+                    char new_svcs[1024] = "";
+                    if (old_svcs && strlen(old_svcs) > 0) {
+                        snprintf(new_svcs, sizeof(new_svcs), "%s,%s:%s", old_svcs, param_type, param_port);
+                    } else {
+                        snprintf(new_svcs, sizeof(new_svcs), "%s:%s", param_type, param_port);
+                    }
+                    set_config_param_str("mdns_svcs", new_svcs);
+                    if (old_svcs) free(old_svcs);
+                    
+                    free(buf);
+                    httpd_resp_set_status(req, "303 See Other");
+                    httpd_resp_set_hdr(req, "Location", "/mdns");
+                    httpd_resp_send(req, NULL, 0);
+                    return ESP_OK;
+                }
+            }
+
+            /* Delete Custom Service */
+            if (httpd_query_key_value(buf, "del_svc", param, sizeof(param)) == ESP_OK) {
+                preprocess_string(param);
+                /* Replace '%3A' or URL encoded colon if it was passed simply back to ':' */
+                for(int i = 0; param[i]; i++){
+                    if(param[i] == '%') {
+                        if (param[i+1] == '3' && (param[i+2] == 'A' || param[i+2] == 'a')) {
+                            param[i] = ':';
+                            memmove(&param[i+1], &param[i+3], strlen(&param[i+3]) + 1);
+                        }
+                    }
+                }
+                char* old_svcs = NULL;
+                get_config_param_str("mdns_svcs", &old_svcs);
+                if (old_svcs) {
+                    char new_svcs[1024] = "";
+                    char* token = strtok(old_svcs, ",");
+                    bool first = true;
+                    while (token != NULL) {
+                        if (strcmp(token, param) != 0) {
+                            if (!first) strncat(new_svcs, ",", sizeof(new_svcs) - strlen(new_svcs) - 1);
+                            strncat(new_svcs, token, sizeof(new_svcs) - strlen(new_svcs) - 1);
+                            first = false;
+                        }
+                        token = strtok(NULL, ",");
+                    }
+                    set_config_param_str("mdns_svcs", new_svcs);
+                    free(old_svcs);
+                }
+                free(buf);
+                httpd_resp_set_status(req, "303 See Other");
+                httpd_resp_set_hdr(req, "Location", "/mdns");
+                httpd_resp_send(req, NULL, 0);
+                return ESP_OK;
+            }
         }
         if (buf) free(buf);
+
     }
 
     // load current values
@@ -2688,12 +2812,69 @@ static esp_err_t mdns_get_handler(httpd_req_t *req)
             HTTPD_RESP_USE_STRLEN);
     }
     
+    httpd_resp_send_chunk(req, MDNS_CHUNK_MID1, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, MDNS_CHUNK_SCRIPT, HTTPD_RESP_USE_STRLEN);
 
-    char section[2048];
-    snprintf(section, sizeof(section), MDNS_CHUNK_FORM,
+    char section[4096];
+    
+    // Chunk MID2 (Main mDNS Configuration Form and Aliases Table Head)
+    snprintf(section, sizeof(section), MDNS_CHUNK_MID2,
         en_chk, safe_host ? safe_host : "", safe_inst ? safe_inst : "", ap_chk, sta_chk);
     httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
+
+    // Stream aliases rows
+    char* mdns_aliases = NULL;
+    get_config_param_str("mdns_aliases", &mdns_aliases);
+    if (mdns_aliases && strlen(mdns_aliases) > 0) {
+        char* token = strtok(mdns_aliases, ",");
+        while (token != NULL) {
+            snprintf(section, sizeof(section),
+                "<tr>"
+                "<td>%s.local</td>"
+                "<td><a href='/mdns?del_alias=%s' class='red-button'>Delete</a></td>"
+                "</tr>",
+                token, token);
+            httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
+            token = strtok(NULL, ",");
+        }
+    } else {
+        httpd_resp_send_chunk(req, "<tr><td colspan='2' style='text-align:center;color:#888;'>No aliases configured</td></tr>", HTTPD_RESP_USE_STRLEN);
+    }
+    if (mdns_aliases) free(mdns_aliases);
+
+    // Chunk MID3 (Aliases Form and Custom Services Table Head)
+    httpd_resp_send_chunk(req, MDNS_CHUNK_MID3, HTTPD_RESP_USE_STRLEN);
+
+    // Stream custom services rows
+    char* mdns_svcs = NULL;
+    get_config_param_str("mdns_svcs", &mdns_svcs);
+    if (mdns_svcs && strlen(mdns_svcs) > 0) {
+        char* token = strtok(mdns_svcs, ",");
+        while (token != NULL) {
+            char svc_str[128];
+            strlcpy(svc_str, token, sizeof(svc_str));
+            char* colon = strchr(svc_str, ':');
+            if (colon) {
+                *colon = '\0';
+                char* port_str = colon + 1;
+                snprintf(section, sizeof(section),
+                    "<tr>"
+                    "<td>%s</td>"
+                    "<td>%s</td>"
+                    "<td><a href='/mdns?del_svc=%s:%s' class='red-button'>Delete</a></td>"
+                    "</tr>",
+                    svc_str, port_str, svc_str, port_str);
+                httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
+            }
+            token = strtok(NULL, ",");
+        }
+    } else {
+        httpd_resp_send_chunk(req, "<tr><td colspan='3' style='text-align:center;color:#888;'>No custom services configured</td></tr>", HTTPD_RESP_USE_STRLEN);
+    }
+    if (mdns_svcs) free(mdns_svcs);
+
+    // Chunk TAIL (Custom Services Form and Footer)
+    httpd_resp_send_chunk(req, MDNS_CHUNK_TAIL, HTTPD_RESP_USE_STRLEN);
 
     httpd_resp_send_chunk(req, NULL, 0);
 
