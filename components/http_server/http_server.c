@@ -1707,7 +1707,6 @@ static esp_err_t mappings_get_handler(httpd_req_t *req)
 
                         if (err_msg == NULL) {
                             uint8_t iface = 0;  // Default: STA
-                            char iface_param[8];
                             add_portmap(proto, ext_port, int_ip, int_port, iface);
 #if CONFIG_ETH_UPLINK
                             ESP_LOGI(TAG, "Added port mapping: ETH %s %d -> %s:%d",
