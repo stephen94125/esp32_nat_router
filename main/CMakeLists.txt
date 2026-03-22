@@ -4,4 +4,4 @@ idf_component_register(SRCS "esp32_nat_router.c"
                             "netif_hooks.c"
                             "led_strip_status.c"
                     INCLUDE_DIRS "."
-                    PRIV_REQUIRES esp_wifi esp_netif console nvs_flash driver esp_http_server fatfs cmd_router dhcpserver wpa_supplicant cmd_system acl remote_console syslog oled_display json esp_eth http_server mqtt_ha app_update led_strip)
+                    PRIV_REQUIRES esp_wifi esp_netif console nvs_flash driver esp_http_server fatfs cmd_router dhcpserver wpa_supplicant cmd_system acl remote_console syslog oled_display json esp_eth http_server mqtt_ha app_update led_strip mdns)
