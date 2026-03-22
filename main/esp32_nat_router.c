@@ -387,7 +387,6 @@ static void eth_event_handler(void* arg, esp_event_base_t event_base,
 
         init_byte_counter();
 
-        init_sntp_if_needed();
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -627,9 +626,6 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 
         // Initialize byte counter after getting IP (interface is ready)
         init_byte_counter();
-
-        // Start SNTP time synchronization
-        init_sntp_if_needed();
 
         // Re-resolve syslog server now that network is up
         syslog_notify_connected();

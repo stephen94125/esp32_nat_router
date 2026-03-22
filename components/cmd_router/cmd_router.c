@@ -2697,7 +2697,7 @@ static int remote_console_cmd(int argc, char **argv)
         printf("Enabled:        %s\n", config.enabled ? "yes" : "no");
         printf("Port:           %d\n", config.port);
 
-        printf("Interface:      %s%s%s\n",
+        printf("Interface:      %s%s\n",
                (config.bind & RC_BIND_AP) ? "AP " : "",
                (config.bind & RC_BIND_STA) ? "STA " : "");
         printf("Idle timeout:   %lu sec\n", (unsigned long)config.idle_timeout_sec);
