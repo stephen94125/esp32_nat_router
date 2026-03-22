@@ -3,7 +3,6 @@ build_eth/**
 .pio*
 .vscode
 .vscode/*
-sdkconfig
 sdkconfig.*
 ..mcp.json.swp
 .mcp.json
