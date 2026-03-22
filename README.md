@@ -32,9 +32,9 @@ To achieve extreme stability and prevent Out-Of-Memory (OOM) crashes during high
 
 ## 📸 Screenshots
 
-<img src="https://raw.githubusercontent.com/stephen94125/esp32_nat_router/master/UI_mDNS.png">
+<img src="https://raw.githubusercontent.com/stephen94125/esp32_nat_router_for_van/master/UI_mDNS.png">
 
-<img src="https://raw.githubusercontent.com/stephen94125/esp32_nat_router/master/UI_MQTT.png">
+<img src="https://raw.githubusercontent.com/stephen94125/esp32_nat_router_for_van/master/UI_MQTT.png">
 
 ## 🚀 Building and Flashing
 
@@ -42,7 +42,7 @@ This project uses the standard ESP-IDF (v5.x) toolchain.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/esp32_nat_router.git
+git clone https://github.com/YOUR_USERNAME/esp32_nat_router_for_van.git
 cd esp32_nat_router
 
 # 2. Build the firmware
