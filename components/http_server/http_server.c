@@ -2680,14 +2680,21 @@ static esp_err_t mdns_get_handler(httpd_req_t *req)
     char* safe_inst = html_escape(mdns_inst);
 
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send_chunk(req, CONFIG_CHUNK_HEAD, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, MDNS_CHUNK_HEAD, HTTPD_RESP_USE_STRLEN);
+
+    if (session_active && password_protection_enabled) {
+        httpd_resp_send_chunk(req,
+            "<a href='/?logout=1' style='padding: 0.4rem 1rem; background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid #ff5252; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 500;'>Logout</a>",
+            HTTPD_RESP_USE_STRLEN);
+    }
+    
+    httpd_resp_send_chunk(req, MDNS_CHUNK_SCRIPT, HTTPD_RESP_USE_STRLEN);
 
     char section[2048];
     snprintf(section, sizeof(section), MDNS_CHUNK_FORM,
         en_chk, safe_host ? safe_host : "", safe_inst ? safe_inst : "", ap_chk, sta_chk);
     httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
 
-    httpd_resp_send_chunk(req, CONFIG_CHUNK_SCRIPT, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, NULL, 0);
 
     free(mdns_host);
