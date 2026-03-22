@@ -15,3 +15,5 @@
 #include "wifi_config.h"
 #include "acl.h"
 #include "web_password.h"
+
+void init_mdns_service(void);

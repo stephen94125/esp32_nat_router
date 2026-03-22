@@ -970,24 +970,66 @@ char* param_set_default(const char* def_val) {
     return retval;
 }
 
-static void initialize_mdns(void)
+void init_mdns_service(void)
 {
+    int mdns_en = 0;
+    get_config_param_int("mdns_en", &mdns_en);
+    if (!mdns_en) {
+        ESP_LOGI(TAG, "mDNS is disabled in configuration.");
+        return;
+    }
+
     esp_err_t err = mdns_init();
     if (err) {
         ESP_LOGE(TAG, "MDNS Init failed: %d", err);
         return;
     }
 
-    const char* mdns_hostname = (hostname && hostname[0]) ? hostname : "nat-router";
-    mdns_hostname_set(mdns_hostname);
-    mdns_instance_name_set("ESP32 NAT Router");
+    int mdns_bind = 3; // default AP + STA
+    get_config_param_int("mdns_bind", &mdns_bind);
+
+    char* mdns_host = NULL;
+    char* mdns_inst = NULL;
+
+    if (get_config_param_str("mdns_host", &mdns_host) != ESP_OK || mdns_host[0] == '\0') {
+        mdns_host = param_set_default("nat-router");
+    }
+    if (get_config_param_str("mdns_inst", &mdns_inst) != ESP_OK || mdns_inst[0] == '\0') {
+        mdns_inst = param_set_default("ESP32 Camper Router");
+    }
+
+    mdns_hostname_set(mdns_host);
+    mdns_instance_name_set(mdns_inst);
 
     mdns_txt_item_t serviceTxtData[1] = {
         {"board", "esp32"}
     };
     mdns_service_add("NAT Router", "_http", "_tcp", 80, serviceTxtData, 1);
     
-    ESP_LOGI(TAG, "mDNS initialized. Hostname: %s.local", mdns_hostname);
+    ESP_LOGI(TAG, "mDNS initialized. Hostname: %s.local, Instance: %s", mdns_host, mdns_inst);
+    ESP_LOGI(TAG, "mDNS Bind flags -> AP: %d, STA/ETH: %d", (mdns_bind & 1), (mdns_bind & 2));
+
+    // Handle Interface Binding
+    // Depending on ESP-IDF version, mdns_init() binds all active interfaces by default.
+    // We attempt to disable IP4 on unbound interfaces per user settings.
+#if !CONFIG_ETH_UPLINK
+    if (!(mdns_bind & 1) && wifiAP) {
+        mdns_netif_action(wifiAP, MDNS_EVENT_DISABLE_IP4);
+    }
+    if (!(mdns_bind & 2) && wifiSTA) {
+        mdns_netif_action(wifiSTA, MDNS_EVENT_DISABLE_IP4);
+    }
+#else
+    if (!(mdns_bind & 1) && wifiAP) {
+        mdns_netif_action(wifiAP, MDNS_EVENT_DISABLE_IP4);
+    }
+    if (!(mdns_bind & 2) && ethNetif) {
+        mdns_netif_action(ethNetif, MDNS_EVENT_DISABLE_IP4);
+    }
+#endif
+
+    free(mdns_host);
+    free(mdns_inst);
 }
 
 void app_main(void)
@@ -1222,8 +1264,8 @@ void app_main(void)
     // Initialize syslog client (UDP forwarding, disabled by default)
     syslog_init();
 
-    // Initialize mDNS
-    initialize_mdns();
+    // Initialize mDNS based on NVS config
+    init_mdns_service();
 
     // Initialize OLED display (disabled by default, enable via 'set_oled enable')
     oled_display_init();

@@ -6,3 +6,4 @@
 #include "pages/page_firewall.h"
 #include "pages/page_setup.h"
 #include "pages/page_scan.h"
+#include "pages/page_mdns.h"

@@ -2600,6 +2600,110 @@ static httpd_uri_t setupp = {
 };
 #endif /* !CONFIG_ETH_UPLINK */
 
+/* mDNS page GET handler */
+static esp_err_t mdns_get_handler(httpd_req_t *req)
+{
+    resume_sta_if_scan_idle();
+    bool password_protection_enabled = is_web_password_set();
+
+    if (password_protection_enabled && !is_authenticated(req)) {
+        { char _ip[16]; ESP_LOGW(TAG, "Unauthenticated access to /mdns from %s", get_client_ip(req, _ip, sizeof(_ip))); }
+        httpd_resp_set_status(req, "303 See Other");
+        httpd_resp_set_hdr(req, "Location", "/?auth_required=1");
+        httpd_resp_send(req, NULL, 0);
+        return ESP_OK;
+    }
+
+    char* buf = NULL;
+    size_t buf_len;
+
+    /* Read URL query string */
+    buf_len = httpd_req_get_url_query_len(req) + 1;
+    if (buf_len > 1) {
+        buf = malloc(buf_len);
+        if (buf != NULL && httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            ESP_LOGI(TAG, "mDNS query => %s", buf);
+
+            char param[128];
+
+            if (httpd_query_key_value(buf, "mdns_save", param, sizeof(param)) == ESP_OK) {
+                // save values
+                int en = 0, ap = 0, sta = 0;
+                if (httpd_query_key_value(buf, "mdns_en", param, sizeof(param)) == ESP_OK) en = 1;
+                if (httpd_query_key_value(buf, "mdns_ap", param, sizeof(param)) == ESP_OK) ap = 1;
+                if (httpd_query_key_value(buf, "mdns_sta", param, sizeof(param)) == ESP_OK) sta = 1;
+                
+                set_config_param_int("mdns_en", en);
+                int bind = (ap ? 1 : 0) | (sta ? 2 : 0);
+                set_config_param_int("mdns_bind", bind);
+
+                if (httpd_query_key_value(buf, "mdns_host", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    set_config_param_str("mdns_host", param);
+                }
+                if (httpd_query_key_value(buf, "mdns_inst", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    set_config_param_str("mdns_inst", param);
+                }
+                
+                free(buf);
+                httpd_resp_set_status(req, "303 See Other");
+                httpd_resp_set_hdr(req, "Location", "/mdns?reset=1");
+                httpd_resp_send(req, NULL, 0);
+                esp_timer_start_once(restart_timer, 500000);
+                return ESP_OK;
+            }
+        }
+        if (buf) free(buf);
+    }
+
+    // load current values
+    int mdns_en = 0;
+    int mdns_bind = 3; // default AP + STA
+    char* mdns_host = NULL;
+    char* mdns_inst = NULL;
+
+    get_config_param_int("mdns_en", &mdns_en);
+    get_config_param_int("mdns_bind", &mdns_bind);
+    if (get_config_param_str("mdns_host", &mdns_host) != ESP_OK || mdns_host[0] == '\0') {
+        mdns_host = strdup("nat-router");
+    }
+    if (get_config_param_str("mdns_inst", &mdns_inst) != ESP_OK || mdns_inst[0] == '\0') {
+        mdns_inst = strdup("ESP32 Camper Router");
+    }
+
+    const char* en_chk = mdns_en ? "checked" : "";
+    const char* ap_chk = (mdns_bind & 1) ? "checked" : "";
+    const char* sta_chk = (mdns_bind & 2) ? "checked" : "";
+
+    char* safe_host = html_escape(mdns_host);
+    char* safe_inst = html_escape(mdns_inst);
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send_chunk(req, CONFIG_CHUNK_HEAD, HTTPD_RESP_USE_STRLEN);
+
+    char section[2048];
+    snprintf(section, sizeof(section), MDNS_CHUNK_FORM,
+        en_chk, safe_host ? safe_host : "", safe_inst ? safe_inst : "", ap_chk, sta_chk);
+    httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
+
+    httpd_resp_send_chunk(req, CONFIG_CHUNK_SCRIPT, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, NULL, 0);
+
+    free(mdns_host);
+    free(mdns_inst);
+    if (safe_host) free(safe_host);
+    if (safe_inst) free(safe_inst);
+
+    return ESP_OK;
+}
+
+static httpd_uri_t mdnsp = {
+    .uri       = "/mdns",
+    .method    = HTTP_GET,
+    .handler   = mdns_get_handler,
+};
+
 static esp_err_t captive_redirect_handler(httpd_req_t *req, httpd_err_code_t err);
 
 httpd_handle_t start_webserver(uint16_t port)
@@ -2608,7 +2712,7 @@ httpd_handle_t start_webserver(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.stack_size = 16384;  // Large stack needed for mappings page with 3x 2KB HTML buffers
-    config.max_uri_handlers = 13;
+    config.max_uri_handlers = 14;
     config.max_uri_len = 1024;
 
     esp_timer_create(&restart_timer_args, &restart_timer);
@@ -2622,6 +2726,7 @@ httpd_handle_t start_webserver(uint16_t port)
         httpd_register_uri_handler(server, &configp);
         httpd_register_uri_handler(server, &mappingsp);
         httpd_register_uri_handler(server, &firewallp);
+        httpd_register_uri_handler(server, &mdnsp);
 #if !CONFIG_ETH_UPLINK
         httpd_register_uri_handler(server, &scanp);
 #endif
