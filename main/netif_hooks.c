@@ -1,4 +1,4 @@
-/* Network interface hooks: byte counting, ACL enforcement, PCAP capture,
+/* Network interface hooks: byte counting, ACL enforcement,
  * TTL override, TCP MSS clamping , and Path MTU switch.
  *
  * Hooks into the lwIP netif input/linkoutput chains for both STA/ETH
@@ -20,7 +20,6 @@
 #include "lwip/inet_chksum.h"
 #include "acl.h"
 #include "client_stats.h"
-#include "pcap_capture.h"
 #include "router_config.h"
 #include "wifi_config.h"
 #include "led_strip_status.h"
@@ -129,29 +128,15 @@ void format_bytes_human(uint64_t bytes, char *buf, size_t len) {
 
 // Hook function to count received bytes via netif input and ACL check
 static err_t netif_input_hook(struct pbuf *p, struct netif *netif) {
-    bool is_acl_monitored = false;
-
     // Check to_esp ACL (packets from Internet to ESP32)
     if (!acl_is_empty(ACL_TO_ESP)) {
         uint8_t result = acl_check_packet(ACL_TO_ESP, p);
 
-        // Check if packet has monitor flag
-        is_acl_monitored = (result != ACL_NO_MATCH) && (result & ACL_MONITOR) != 0;
-
         // Handle deny action (logging done in acl_check_packet)
         if ((result & 0x01) == ACL_DENY && result != ACL_NO_MATCH) {
-            // Capture denied packet if monitoring is enabled before dropping
-            if (is_acl_monitored && pcap_should_capture(true, false)) {
-                pcap_capture_packet(p);
-            }
             pbuf_free(p);
             return ERR_OK;
         }
-    }
-
-    // Capture packet based on mode and ACL monitor flag (STA interface = false)
-    if (pcap_should_capture(is_acl_monitored, false)) {
-        pcap_capture_packet(p);
     }
 
     // Count received bytes and toggle LED
@@ -177,26 +162,17 @@ static err_t netif_input_hook(struct pbuf *p, struct netif *netif) {
 
 // Hook function to count sent bytes via netif linkoutput and ACL check
 static err_t netif_linkoutput_hook(struct netif *netif, struct pbuf *p) {
-    bool is_acl_monitored = false;
-
     // Check from_esp ACL (packets from ESP32 to Internet)
     if (!acl_is_empty(ACL_FROM_ESP)) {
         uint8_t result = acl_check_packet(ACL_FROM_ESP, p);
 
-        // Check if packet has monitor flag
-        is_acl_monitored = (result != ACL_NO_MATCH) && (result & ACL_MONITOR) != 0;
-
         // Handle deny action (logging done in acl_check_packet)
         if ((result & 0x01) == ACL_DENY && result != ACL_NO_MATCH) {
-            // Capture denied packet if monitoring is enabled before dropping
-            if (is_acl_monitored && pcap_should_capture(true, false)) {
-                pcap_capture_packet(p);
-            }
             return ERR_OK;
         }
     }
 
-    // TTL override for upstream packets (must be before PCAP capture)
+    // TTL override for upstream packets
     // Ethernet header: 14 bytes (6 dst + 6 src + 2 ethertype)
     // Use p->len (first segment) to ensure header is accessible in this pbuf
     if (sta_ttl_override > 0 && p != NULL && p->len >= 14 + sizeof(struct ip_hdr)) {
@@ -224,11 +200,6 @@ static err_t netif_linkoutput_hook(struct netif *netif, struct pbuf *p) {
                 iphdr->_chksum = (uint16_t)~sum;
             }
         }
-    }
-
-    // Capture packet based on mode and ACL monitor flag (STA interface = false)
-    if (pcap_should_capture(is_acl_monitored, false)) {
-        pcap_capture_packet(p);
     }
 
     // Count sent bytes and toggle LED
@@ -488,23 +459,14 @@ static void send_icmp_frag_needed(struct pbuf *p, struct netif *netif, uint16_t 
     pbuf_free(resp);
 }
 
-// AP netif hook functions (for PCAP capture and ACL)
+// AP netif hook functions (for ACL)
 static err_t ap_netif_input_hook(struct pbuf *p, struct netif *netif) {
-    bool is_acl_monitored = false;
-
     // Check to_ap ACL (packets from Clients to ESP32)
     if (!acl_is_empty(ACL_TO_AP)) {
         uint8_t result = acl_check_packet(ACL_TO_AP, p);
 
-        // Check if packet has monitor flag
-        is_acl_monitored = (result != ACL_NO_MATCH) && (result & ACL_MONITOR) != 0;
-
         // Handle deny action (logging done in acl_check_packet)
         if ((result & 0x01) == ACL_DENY && result != ACL_NO_MATCH) {
-            // Capture denied packet if monitoring is enabled before dropping
-            if (is_acl_monitored && pcap_should_capture(true, true)) {
-                pcap_capture_packet(p);
-            }
             pbuf_free(p);
             return ERR_OK;
         }
@@ -528,11 +490,6 @@ static err_t ap_netif_input_hook(struct pbuf *p, struct netif *netif) {
         }
     }
 
-    // Capture packet based on mode and ACL monitor flag (AP interface = true)
-    if (pcap_should_capture(is_acl_monitored, true)) {
-        pcap_capture_packet(p);
-    }
-
     // Call original input function
     if (original_ap_netif_input != NULL) {
         return original_ap_netif_input(p, netif);
@@ -542,21 +499,12 @@ static err_t ap_netif_input_hook(struct pbuf *p, struct netif *netif) {
 }
 
 static err_t ap_netif_linkoutput_hook(struct netif *netif, struct pbuf *p) {
-    bool is_acl_monitored = false;
-
     // Check from_ap ACL (packets from ESP32 to Clients)
     if (!acl_is_empty(ACL_FROM_AP)) {
         uint8_t result = acl_check_packet(ACL_FROM_AP, p);
 
-        // Check if packet has monitor flag
-        is_acl_monitored = (result != ACL_NO_MATCH) && (result & ACL_MONITOR) != 0;
-
         // Handle deny action (logging done in acl_check_packet)
         if ((result & 0x01) == ACL_DENY && result != ACL_NO_MATCH) {
-            // Capture denied packet if monitoring is enabled before dropping
-            if (is_acl_monitored && pcap_should_capture(true, true)) {
-                pcap_capture_packet(p);
-            }
             return ERR_OK;
         }
     }
@@ -572,11 +520,6 @@ static err_t ap_netif_linkoutput_hook(struct netif *netif, struct pbuf *p) {
             entry->bytes_sent += p->tot_len;
             entry->packets_sent++;
         }
-    }
-
-    // Capture packet based on mode and ACL monitor flag (AP interface = true)
-    if (pcap_should_capture(is_acl_monitored, true)) {
-        pcap_capture_packet(p);
     }
 
     // Call original linkoutput function

@@ -35,7 +35,6 @@
 #include "pages.h"
 #include "favicon_png.h"
 #include "router_globals.h"
-#include "pcap_capture.h"
 #include "acl.h"
 #include "remote_console.h"
 #include "cJSON.h"
@@ -867,20 +866,6 @@ static esp_err_t index_get_handler(httpd_req_t *req)
     snprintf(row, sizeof(row), "<tr><td>Bytes:</td><td>%.1f MB sent / %.1f MB received</td></tr>", sent_mb, received_mb);
     httpd_resp_send_chunk(req, row, HTTPD_RESP_USE_STRLEN);
 
-    /* Stream Monitoring row */
-    pcap_capture_mode_t mode = pcap_get_mode();
-    if (mode != PCAP_MODE_OFF) {
-        const char* mode_name = (mode == PCAP_MODE_ACL_MONITOR) ? "ACL Monitor" : "Promiscuous";
-        snprintf(row, sizeof(row),
-                 "<tr><td>Monitoring:</td><td><span style='color: #4caf50;'>%s</span> (%lu captured, %lu dropped)</td></tr>",
-                 mode_name,
-                 (unsigned long)pcap_get_captured_count(),
-                 (unsigned long)pcap_get_dropped_count());
-    } else {
-        snprintf(row, sizeof(row), "<tr><td>Monitoring:</td><td><span style='color: #888;'>Off</span></td></tr>");
-    }
-    httpd_resp_send_chunk(req, row, HTTPD_RESP_USE_STRLEN);
-
     /* Stream Uptime row */
     char uptime_str[32];
     format_uptime(get_uptime_seconds(), uptime_str, sizeof(uptime_str));
@@ -1273,33 +1258,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
                 httpd_resp_send(req, NULL, 0);
                 return ESP_OK;
             }
-
-            /* Handle PCAP settings (single form) */
-            if (httpd_query_key_value(buf, "pcap_save", param1, sizeof(param1)) == ESP_OK) {
-                if (httpd_query_key_value(buf, "pcap_mode", param1, sizeof(param1)) == ESP_OK) {
-                    preprocess_string(param1);
-                    if (strcmp(param1, "off") == 0) {
-                        pcap_set_mode(PCAP_MODE_OFF);
-                    } else if (strcmp(param1, "acl") == 0) {
-                        pcap_set_mode(PCAP_MODE_ACL_MONITOR);
-                    } else if (strcmp(param1, "promisc") == 0) {
-                        pcap_set_mode(PCAP_MODE_PROMISCUOUS);
-                    }
-                }
-                if (httpd_query_key_value(buf, "pcap_snaplen", param1, sizeof(param1)) == ESP_OK) {
-                    preprocess_string(param1);
-                    int snaplen = atoi(param1);
-                    if (snaplen >= 64 && snaplen <= 1600) {
-                        pcap_set_snaplen((uint16_t)snaplen);
-                    }
-                }
-                ESP_LOGI(TAG, "PCAP settings saved via web");
-                free(buf);
-                httpd_resp_set_status(req, "303 See Other");
-                httpd_resp_set_hdr(req, "Location", "/config");
-                httpd_resp_send(req, NULL, 0);
-                return ESP_OK;
-            }
         }
         free(buf);
     }
@@ -1410,18 +1368,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
     const char* rc_ap_chk = (rc_config.bind & RC_BIND_AP) ? "checked" : "";
     const char* rc_sta_chk = (rc_config.bind & RC_BIND_STA) ? "checked" : "";
 
-    // PCAP state
-    pcap_capture_mode_t pcap_mode = pcap_get_mode();
-    const char* pcap_mode_off_sel = (pcap_mode == PCAP_MODE_OFF) ? "selected" : "";
-    const char* pcap_mode_acl_sel = (pcap_mode == PCAP_MODE_ACL_MONITOR) ? "selected" : "";
-    const char* pcap_mode_promisc_sel = (pcap_mode == PCAP_MODE_PROMISCUOUS) ? "selected" : "";
-    bool pcap_client = pcap_client_connected();
-    const char* pcap_client_color = pcap_client ? "#4caf50" : "#888";
-    const char* pcap_client_text = pcap_client ? "Connected" : "Not connected";
-    uint32_t pcap_captured = pcap_get_captured_count();
-    uint32_t pcap_dropped = pcap_get_dropped_count();
-    int current_snaplen = pcap_get_snaplen();
-
     /* Reusable buffer for building sections */
     char section[2048];
 
@@ -1483,20 +1429,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
         rc_config.port,
         rc_ap_chk, rc_sta_chk,
         (unsigned long)rc_config.idle_timeout_sec);
-    httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
-
-    /* Chunk 8: PCAP */
-    char sta_ip_str[16];
-    {
-        ip4_addr_t sta_addr;
-        sta_addr.addr = my_ip;
-        snprintf(sta_ip_str, sizeof(sta_ip_str), IPSTR, IP2STR(&sta_addr));
-    }
-    snprintf(section, sizeof(section), CONFIG_CHUNK_PCAP,
-        pcap_mode_off_sel, pcap_mode_acl_sel, pcap_mode_promisc_sel,
-        pcap_client_color, pcap_client_text,
-        (unsigned long)pcap_captured, (unsigned long)pcap_dropped,
-        current_snaplen, sta_ip_str);
     httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
 
     /* Chunk 9: Device management heading */

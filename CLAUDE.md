@@ -47,7 +47,6 @@ components/
 ├── dhcpserver/          # Custom DHCP server with reservation support (overrides ESP-IDF built-in)
 ├── http_server/         # Web UI server at 192.168.4.1 (pages: /, /config, /mappings, /firewall)
 ├── oled_display/        # Optional OLED display support
-├── pcap_capture/        # PCAP packet capture with TCP streaming to Wireshark
 ├── remote_console/      # Network-accessible CLI via TCP (password protected)
 ├── cmd_router/          # CLI commands: set_sta, set_ap, portmap, dhcp_reserve, web_ui, set_web_password, show, acl, remote_console
 └── cmd_system/          # System commands: free, heap, restart, factory_reset, tasks
@@ -158,7 +157,7 @@ typedef struct {
 **Action codes:**
 - `ACL_DENY` (0x00) - Drop packet
 - `ACL_ALLOW` (0x01) - Allow packet
-- `ACL_MONITOR` (0x02) - Flag: also capture to PCAP
+- `ACL_MONITOR` (0x02) - DEPRECATED
 - `ACL_NO_MATCH` (0xFF) - No rule matched (packet allowed by default)
 
 **Key functions** (`acl.c`):

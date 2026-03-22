@@ -7,7 +7,7 @@
  *   portmap.c       - Port mapping (NAPT) table management
  *   dhcp_manager.c  - DHCP reservation management
  *   acl_nvs.c       - ACL firewall rule persistence
- *   netif_hooks.c   - Network interface hooks (byte counting, ACL, PCAP, MSS/PMTU)
+ *   netif_hooks.c   - Network interface hooks (byte counting, ACL, MSS/PMTU)
  */
 
 #include <stdio.h>
@@ -61,7 +61,6 @@
 #include "router_globals.h"
 #include "lwip/ip_addr.h"
 #include "esp_netif.h"
-#include "pcap_capture.h"
 #include "remote_console.h"
 #include "syslog_client.h"
 #include "oled_display.h"
@@ -1195,9 +1194,6 @@ void app_main(void)
         start_webserver((uint16_t)web_port_setting);
     }
     free(web_disabled);
-
-    // Initialize PCAP capture (TCP server on port 19000)
-    pcap_init();
 
     // Initialize remote console (TCP server on port 2323, disabled by default)
     remote_console_init();

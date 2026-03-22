@@ -38,7 +38,6 @@
 #include "driver/gpio.h"
 #include "router_globals.h"
 #include "cmd_router.h"
-#include "pcap_capture.h"
 #include "acl.h"
 #include "remote_console.h"
 #include "syslog_client.h"
@@ -74,7 +73,6 @@ static void register_dhcp_reserve(void);
 static void register_set_router_password(void);
 static void register_web_ui(void);
 static void register_bytes(void);
-static void register_pcap(void);
 static void register_set_led_gpio(void);
 static void register_set_led_lowactive(void);
 static void register_set_led_strip(void);
@@ -288,7 +286,6 @@ void register_router(void)
     register_portmap();
     register_acl();
     register_bytes();
-    register_pcap();
     register_web_ui();
     register_set_router_password();
     register_set_led_gpio();
@@ -1632,132 +1629,7 @@ static void register_bytes(void)
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
 }
 
-/* 'pcap' command arguments */
-static struct {
-    struct arg_str* action;
-    struct arg_str* mode;
-    struct arg_int* snaplen;
-    struct arg_end* end;
-} pcap_args;
 
-/* 'pcap' command implementation */
-static int pcap(int argc, char **argv)
-{
-    int nerrors = arg_parse(argc, argv, (void **) &pcap_args);
-    if (nerrors != 0) {
-        arg_print_errors(stderr, pcap_args.end, argv[0]);
-        return 1;
-    }
-
-    if (pcap_args.action->count == 0) {
-        printf("Usage: pcap <action> [args]\n");
-        printf("  mode [off|acl|promisc] - Get or set capture mode\n");
-        printf("    off      - Capture disabled\n");
-        printf("    acl      - Capture ACL_MONITOR flagged packets (any interface)\n");
-        printf("    promisc  - Capture all AP client traffic (not STA)\n");
-        printf("  status     - Show capture status\n");
-        printf("  snaplen [n]- Get or set max capture bytes (64-1600)\n");
-        printf("  start      - Legacy: enable promiscuous mode\n");
-        printf("  stop       - Legacy: disable capture\n");
-        return 1;
-    }
-
-    const char *action = pcap_args.action->sval[0];
-
-    if (strcmp(action, "mode") == 0) {
-        if (pcap_args.mode->count > 0) {
-            const char *mode_str = pcap_args.mode->sval[0];
-            if (strcmp(mode_str, "off") == 0) {
-                pcap_set_mode(PCAP_MODE_OFF);
-                printf("Capture mode: off\n");
-            } else if (strcmp(mode_str, "acl") == 0) {
-                pcap_set_mode(PCAP_MODE_ACL_MONITOR);
-                printf("Capture mode: acl-monitor\n");
-                printf("Only packets matching ACL rules with +M flag will be captured (any interface)\n");
-            } else if (strcmp(mode_str, "promisc") == 0 || strcmp(mode_str, "promiscuous") == 0) {
-                pcap_set_mode(PCAP_MODE_PROMISCUOUS);
-                printf("Capture mode: promiscuous\n");
-                printf("All AP client traffic will be captured (STA excluded)\n");
-            } else {
-                printf("Invalid mode. Use: off, acl, or promisc\n");
-                return 1;
-            }
-            printf("Connect Wireshark to TCP port 19000\n");
-        } else {
-            printf("Current mode: %s\n", pcap_mode_to_string(pcap_get_mode()));
-        }
-    } else if (strcmp(action, "start") == 0) {
-        // Legacy: start = promiscuous mode
-        pcap_set_mode(PCAP_MODE_PROMISCUOUS);
-        printf("PCAP capture started in promiscuous mode (snaplen=%d)\n", pcap_get_snaplen());
-        printf("Connect Wireshark to TCP port 19000\n");
-    } else if (strcmp(action, "stop") == 0) {
-        // Legacy: stop = off mode
-        pcap_set_mode(PCAP_MODE_OFF);
-        printf("PCAP capture stopped\n");
-    } else if (strcmp(action, "snaplen") == 0) {
-        int val = 0;
-        bool has_value = false;
-
-        if (pcap_args.snaplen->count > 0) {
-            val = pcap_args.snaplen->ival[0];
-            has_value = true;
-        } else if (pcap_args.mode->count > 0) {
-            // argtable may have put the number in mode slot (string before int)
-            val = atoi(pcap_args.mode->sval[0]);
-            if (val > 0) has_value = true;
-        }
-
-        if (has_value) {
-            if (pcap_set_snaplen((uint16_t)val)) {
-                printf("Snaplen set to %d bytes\n", pcap_get_snaplen());
-            } else {
-                printf("Error: snaplen must be between 64 and 1600\n");
-                return 1;
-            }
-        } else {
-            printf("Current snaplen: %d bytes\n", pcap_get_snaplen());
-        }
-    } else if (strcmp(action, "status") == 0) {
-        printf("PCAP Capture Status:\n");
-        printf("====================\n");
-        printf("Mode:     %s\n", pcap_mode_to_string(pcap_get_mode()));
-        printf("Client:   %s\n", pcap_client_connected() ? "connected" : "not connected");
-        printf("Snaplen:  %d bytes\n", pcap_get_snaplen());
-
-        size_t used, total;
-        pcap_get_buffer_usage(&used, &total);
-        printf("Buffer:   %u / %u bytes (%.1f%%)\n",
-               (unsigned)used, (unsigned)total,
-               total > 0 ? (100.0f * used / total) : 0.0f);
-
-        printf("Captured: %lu packets\n", (unsigned long)pcap_get_captured_count());
-        printf("Dropped:  %lu packets\n", (unsigned long)pcap_get_dropped_count());
-        printf("\nConnection: nc <esp32_ip> 19000 | wireshark -k -i -\n");
-    } else {
-        printf("Invalid action. Use: pcap <mode|status|snaplen|start|stop>\n");
-        return 1;
-    }
-
-    return 0;
-}
-
-static void register_pcap(void)
-{
-    pcap_args.action = arg_str1(NULL, NULL, "<action>", "mode|status|snaplen|start|stop");
-    pcap_args.mode = arg_str0(NULL, NULL, "<mode>", "off|acl|promisc");
-    pcap_args.snaplen = arg_int0(NULL, NULL, "<bytes>", "snaplen value (64-1600)");
-    pcap_args.end = arg_end(3);
-
-    const esp_console_cmd_t cmd = {
-        .command = "pcap",
-        .help = "Control PCAP packet capture (TCP port 19000)",
-        .hint = NULL,
-        .func = &pcap,
-        .argtable = &pcap_args
-    };
-    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
-}
 
 /* 'set_led_gpio' command */
 static int set_led_gpio_cmd(int argc, char **argv)

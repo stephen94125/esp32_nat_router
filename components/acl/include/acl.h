@@ -36,7 +36,7 @@ extern "C" {
 /* ACL action codes */
 #define ACL_DENY        0x00  /* Drop packet */
 #define ACL_ALLOW       0x01  /* Allow packet */
-#define ACL_MONITOR     0x02  /* Flag: also send to PCAP capture */
+#define ACL_MONITOR     0x02  /* DEPRECATED: Dummy constant to prevent build errors. */
 #define ACL_NO_MATCH    0xFF  /* No rule matched (packet allowed by default) */
 
 /* Protocol constants */
