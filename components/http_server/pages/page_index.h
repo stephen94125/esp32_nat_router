@@ -190,6 +190,7 @@ font-size: 0.8rem;\
 <a href='/mappings' class='nav-button'>🔀 Mappings</a>\
 <a href='/firewall' class='nav-button'>🛡️ Firewall</a>\
 <a href='/mdns' class='nav-button'>🏷️ mDNS</a>\
+<a href='/mqtt' class='nav-button'>📡 MQTT</a>\
 </div>"
 #else
 #define INDEX_CHUNK_BUTTONS "\
@@ -198,6 +199,7 @@ font-size: 0.8rem;\
 <a href='/mappings' class='nav-button'>🔀 Mappings</a>\
 <a href='/firewall' class='nav-button'>🛡️ Firewall</a>\
 <a href='/mdns' class='nav-button'>🏷️ mDNS</a>\
+<a href='/mqtt' class='nav-button'>📡 MQTT</a>\
 </div>"
 #endif
 /* Auth UI streamed here */

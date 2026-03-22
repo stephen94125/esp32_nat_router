@@ -2892,6 +2892,140 @@ static httpd_uri_t mdnsp = {
     .handler   = mdns_get_handler,
 };
 
+/* MQTT page GET handler */
+static esp_err_t mqtt_get_handler(httpd_req_t *req)
+{
+    resume_sta_if_scan_idle();
+    bool password_protection_enabled = is_web_password_set();
+
+    if (password_protection_enabled && !is_authenticated(req)) {
+        { char _ip[16]; ESP_LOGW(TAG, "Unauthenticated access to /mqtt from %s", get_client_ip(req, _ip, sizeof(_ip))); }
+        httpd_resp_set_status(req, "303 See Other");
+        httpd_resp_set_hdr(req, "Location", "/?auth_required=1");
+        httpd_resp_send(req, NULL, 0);
+        return ESP_OK;
+    }
+
+    char* buf = NULL;
+    size_t buf_len;
+
+    /* Read URL query string */
+    buf_len = httpd_req_get_url_query_len(req) + 1;
+    if (buf_len > 1) {
+        buf = malloc(buf_len);
+        if (buf != NULL && httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            ESP_LOGI(TAG, "MQTT query => %s", buf);
+
+            char param[128];
+
+            if (httpd_query_key_value(buf, "mqtt_save", param, sizeof(param)) == ESP_OK) {
+                // save values
+                int en = 0, disco = 0;
+                if (httpd_query_key_value(buf, "mqtt_en", param, sizeof(param)) == ESP_OK) en = 1;
+                if (httpd_query_key_value(buf, "mqtt_disco", param, sizeof(param)) == ESP_OK) disco = 1;
+                
+                set_config_param_int("mqtt_en", en);
+                set_config_param_int("mqtt_disco", disco);
+
+                if (httpd_query_key_value(buf, "mqtt_uri", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    set_config_param_str("mqtt_uri", param);
+                }
+                if (httpd_query_key_value(buf, "mqtt_user", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    set_config_param_str("mqtt_user", param);
+                }
+                if (httpd_query_key_value(buf, "mqtt_pass", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    set_config_param_str("mqtt_pass", param);
+                }
+                if (httpd_query_key_value(buf, "mqtt_intv", param, sizeof(param)) == ESP_OK) {
+                    preprocess_string(param);
+                    int intv = atoi(param);
+                    if (intv >= 5 && intv <= 3600) {
+                        set_config_param_int("mqtt_intv", intv);
+                    }
+                }
+                
+                free(buf);
+                httpd_resp_set_status(req, "303 See Other");
+                httpd_resp_set_hdr(req, "Location", "/mqtt?reset=1");
+                httpd_resp_send(req, NULL, 0);
+                esp_timer_start_once(restart_timer, 500000);
+                return ESP_OK;
+            }
+        }
+        if (buf) free(buf);
+    }
+
+    // load current values
+    int mqtt_en = 0;
+    int mqtt_disco = 1; // default enabled
+    char* mqtt_uri = NULL;
+    char* mqtt_user = NULL;
+    char* mqtt_pass = NULL;
+    int mqtt_intv = 30; // default
+
+    get_config_param_int("mqtt_en", &mqtt_en);
+    get_config_param_int("mqtt_disco", &mqtt_disco);
+    
+    if (get_config_param_str("mqtt_uri", &mqtt_uri) != ESP_OK || mqtt_uri[0] == '\0') {
+        mqtt_uri = strdup("mqtt://192.168.4.2:1883");
+    }
+    if (get_config_param_str("mqtt_user", &mqtt_user) != ESP_OK) {
+        mqtt_user = strdup("");
+    }
+    if (get_config_param_str("mqtt_pass", &mqtt_pass) != ESP_OK) {
+        mqtt_pass = strdup("");
+    }
+    get_config_param_int("mqtt_intv", &mqtt_intv);
+
+    const char* en_chk = mqtt_en ? "checked" : "";
+    const char* disco_chk = mqtt_disco ? "checked" : "";
+
+    char* safe_uri = html_escape(mqtt_uri);
+    char* safe_user = html_escape(mqtt_user);
+    char* safe_pass = html_escape(mqtt_pass);
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send_chunk(req, MQTT_CHUNK_HEAD, HTTPD_RESP_USE_STRLEN);
+
+    if (session_active && password_protection_enabled) {
+        httpd_resp_send_chunk(req,
+            "<a href='/?logout=1' style='padding: 0.4rem 1rem; background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid #ff5252; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 500;'>Logout</a>",
+            HTTPD_RESP_USE_STRLEN);
+    }
+    
+    httpd_resp_send_chunk(req, MQTT_CHUNK_MID1, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, MQTT_CHUNK_SCRIPT, HTTPD_RESP_USE_STRLEN);
+
+    char section[4096];
+    snprintf(section, sizeof(section), CONFIG_CHUNK_MQTT,
+        en_chk, disco_chk,
+        safe_uri ? safe_uri : "",
+        safe_user ? safe_user : "",
+        safe_pass ? safe_pass : "",
+        mqtt_intv);
+    httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
+
+    httpd_resp_send_chunk(req, NULL, 0);
+
+    free(mqtt_uri);
+    free(mqtt_user);
+    free(mqtt_pass);
+    if (safe_uri) free(safe_uri);
+    if (safe_user) free(safe_user);
+    if (safe_pass) free(safe_pass);
+
+    return ESP_OK;
+}
+
+static httpd_uri_t mqttp = {
+    .uri       = "/mqtt",
+    .method    = HTTP_GET,
+    .handler   = mqtt_get_handler,
+};
+
 static esp_err_t captive_redirect_handler(httpd_req_t *req, httpd_err_code_t err);
 
 httpd_handle_t start_webserver(uint16_t port)
@@ -2900,7 +3034,7 @@ httpd_handle_t start_webserver(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.stack_size = 16384;  // Large stack needed for mappings page with 3x 2KB HTML buffers
-    config.max_uri_handlers = 14;
+    config.max_uri_handlers = 15;
     config.max_uri_len = 1024;
 
     esp_timer_create(&restart_timer_args, &restart_timer);
@@ -2915,6 +3049,7 @@ httpd_handle_t start_webserver(uint16_t port)
         httpd_register_uri_handler(server, &mappingsp);
         httpd_register_uri_handler(server, &firewallp);
         httpd_register_uri_handler(server, &mdnsp);
+        httpd_register_uri_handler(server, &mqttp);
 #if !CONFIG_ETH_UPLINK
         httpd_register_uri_handler(server, &scanp);
 #endif

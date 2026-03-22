@@ -36,6 +36,7 @@ static const char *TAG = "mqtt_ha";
 
 /* ---------- NVS keys (namespace PARAM_NAMESPACE = "esp32_nat") ---------- */
 #define NVS_KEY_MQTT_EN    "mqtt_en"
+#define NVS_KEY_MQTT_DISCO "mqtt_disco"
 #define NVS_KEY_MQTT_URI   "mqtt_uri"
 #define NVS_KEY_MQTT_USER  "mqtt_user"
 #define NVS_KEY_MQTT_PASS  "mqtt_pass"
@@ -59,6 +60,7 @@ static esp_mqtt_client_handle_t s_client = NULL;
 static esp_timer_handle_t       s_publish_timer = NULL;
 static bool s_enabled   = false;
 static bool s_connected = false;
+static bool s_disco_en  = true;
 
 static char s_uri[MQTT_URI_MAX]    = "";
 static char s_user[MQTT_CRED_MAX]  = "";
@@ -117,6 +119,10 @@ static void load_config(void)
     int32_t en = 0;
     nvs_get_i32(h, NVS_KEY_MQTT_EN, &en);
     s_enabled = (en != 0);
+
+    int32_t disco = 1;
+    nvs_get_i32(h, NVS_KEY_MQTT_DISCO, &disco);
+    s_disco_en = (disco != 0);
 
     size_t sz;
     sz = sizeof(s_uri);  nvs_get_str(h, NVS_KEY_MQTT_URI,  s_uri,  &sz);
@@ -512,7 +518,9 @@ static void mqtt_event_handler(void *arg, esp_event_base_t base,
         esp_mqtt_client_subscribe(s_client, TOPIC_CMD_WEBUI, 1);
         esp_mqtt_client_subscribe(s_client, TOPIC_CMD_RC, 1);
         /* Publish HA discovery */
-        publish_discovery();
+        if (s_disco_en) {
+            publish_discovery();
+        }
         /* Publish initial state */
         publish_state(NULL);
         break;

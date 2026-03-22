@@ -7,3 +7,4 @@
 #include "pages/page_setup.h"
 #include "pages/page_scan.h"
 #include "pages/page_mdns.h"
+#include "pages/page_mqtt.h"
