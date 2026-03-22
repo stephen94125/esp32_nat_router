@@ -32,15 +32,13 @@ main/
 ├── esp32_nat_router.c   # Entry point: WiFi init, event handling, LED status
 ├── dhcp_manager.c       # DHCP reservation management (add/del/lookup/print)
 ├── netif_hooks.c        # Network interface hooks for byte counting and ACL
-├── portmap.c            # Port mapping table management
-└── vpn_manager.c        # VPN/WireGuard configuration and management
+└── portmap.c            # Port mapping table management
 
 include/
 ├── router_globals.h     # Global variables and shared state
 ├── router_config.h      # NVS namespace and config constants
 ├── dhcp_reservations.h  # DHCP reservation API
 ├── portmap.h            # Port mapping API
-├── vpn_config.h         # VPN configuration structures
 ├── web_password.h       # Web password hashing API
 └── wifi_config.h        # WiFi config parameter helpers
 

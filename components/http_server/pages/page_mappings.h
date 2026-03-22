@@ -138,9 +138,9 @@ document.getElementById('dhcp_mac').scrollIntoView({behavior: 'smooth', block: '
 <tbody>"
 
 #if CONFIG_ETH_UPLINK
-#define PORTMAP_IFACE_OPTIONS "<option value='STA'>ETH (Ethernet)</option><option value='VPN'>VPN</option>"
+#define PORTMAP_IFACE_OPTIONS "<option value='STA'>ETH (Ethernet)</option>"
 #else
-#define PORTMAP_IFACE_OPTIONS "<option value='STA'>STA (WiFi)</option><option value='VPN'>VPN</option>"
+#define PORTMAP_IFACE_OPTIONS "<option value='STA'>STA (WiFi)</option>"
 #endif
 
 /* After portmap tbody to end */

@@ -146,7 +146,7 @@ setTimeout(\"location.href = '/'\", 10000);\
 <small>Leave empty for DHCP</small>\
 </form>"
 
-/* Remote Console section - uses: rc_en_chk, rc_dis_chk, rc_color, rc_status, rc_kick, rc_port, rc_ap_chk, rc_sta_chk, rc_vpn_chk, rc_timeout */
+/* Remote Console section - uses: rc_en_chk, rc_dis_chk, rc_color, rc_status, rc_kick, rc_port, rc_ap_chk, rc_sta_chk, rc_timeout */
 #define CONFIG_CHUNK_RC "\
 <h2>Remote Console</h2>\
 <form action='' method='GET'>\
@@ -161,7 +161,6 @@ setTimeout(\"location.href = '/'\", 10000);\
 <tr><td>Bind Interfaces</td><td>\
 <label style='margin-right: 0.8rem;'><input type='checkbox' name='rc_bind_ap' value='1' %s> AP</label>\
 <label style='margin-right: 0.8rem;'><input type='checkbox' name='rc_bind_sta' value='1' %s> STA</label>\
-<label><input type='checkbox' name='rc_bind_vpn' value='1' %s> VPN</label>\
 </td></tr>\
 <tr><td>Idle Timeout</td><td><input type='number' name='rc_timeout' value='%lu' min='0' max='86400' style='width: 100px;'/> sec (0 = no)</td></tr>\
 <tr><td></td><td><input type='submit' value='Save' class='ok-button'/></td></tr>\
