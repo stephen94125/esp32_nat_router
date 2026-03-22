@@ -33,6 +33,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_ota_ops.h"
+#include "mdns.h"
 
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
@@ -1046,6 +1047,26 @@ char* param_set_default(const char* def_val) {
     return retval;
 }
 
+static void initialize_mdns(void)
+{
+    esp_err_t err = mdns_init();
+    if (err) {
+        ESP_LOGE(TAG, "MDNS Init failed: %d", err);
+        return;
+    }
+
+    const char* mdns_hostname = (hostname && hostname[0]) ? hostname : "nat-router";
+    mdns_hostname_set(mdns_hostname);
+    mdns_instance_name_set("ESP32 NAT Router");
+
+    mdns_txt_item_t serviceTxtData[1] = {
+        {"board", "esp32"}
+    };
+    mdns_service_add("NAT Router", "_http", "_tcp", 80, serviceTxtData, 1);
+    
+    ESP_LOGI(TAG, "mDNS initialized. Hostname: %s.local", mdns_hostname);
+}
+
 void app_main(void)
 {
     initialize_nvs();
@@ -1357,6 +1378,9 @@ void app_main(void)
 
     // Initialize syslog client (UDP forwarding, disabled by default)
     syslog_init();
+
+    // Initialize mDNS
+    initialize_mdns();
 
     // Initialize OLED display (disabled by default, enable via 'set_oled enable')
     oled_display_init();
