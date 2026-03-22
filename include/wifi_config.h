@@ -30,8 +30,6 @@ extern uint8_t sta_band;   /* STA_BAND_AUTO / STA_BAND_2G / STA_BAND_5G */
 
 #if !CONFIG_ETH_UPLINK
 extern char* ssid;
-extern char* ent_username;
-extern char* ent_identity;
 extern char* passwd;
 #endif
 extern char* static_ip;
@@ -58,14 +56,6 @@ extern uint8_t ap_authmode;
 #if CONFIG_ETH_UPLINK
 // AP WiFi channel (0 = auto, 1-13 = fixed channel; ETH_UPLINK only)
 extern uint8_t ap_channel;
-#endif
-
-#if !CONFIG_ETH_UPLINK
-// WPA2-Enterprise settings
-extern int32_t eap_method;          // 0=Auto, 1=PEAP, 2=TTLS, 3=TLS
-extern int32_t ttls_phase2;         // 0=MSCHAPv2, 1=MSCHAP, 2=PAP, 3=CHAP
-extern int32_t use_cert_bundle;     // 0=off, 1=on
-extern int32_t disable_time_check;  // 0=off, 1=on
 #endif
 
 void preprocess_string(char* str);

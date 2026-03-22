@@ -97,8 +97,7 @@ setTimeout(\"location.href = '/'\", 10000);\
 #define CONFIG_CHUNK_STA_BAND_ROW ""
 #endif
 
-/* STA Settings section - uses %s for: ssid, ent_username, ent_identity,
-   eap_method selected x4, ttls_phase2 selected x4, cert_bundle checked, no_time_chk checked,
+/* STA Settings section - uses %s for: ssid,
    [if WIFI_HAS_5GHZ: band_auto_sel, band_2g_sel, band_5g_sel,]
    sta_mac */
 #define CONFIG_CHUNK_STA "\
@@ -108,25 +107,6 @@ setTimeout(\"location.href = '/'\", 10000);\
 <tr><td>SSID</td><td><input type='text' name='ssid' value='%s' placeholder='Uplink network'/></td></tr>\
 <tr><td>Password</td><td><input type='text' name='password' placeholder='unchanged'/></td></tr>\
 " CONFIG_CHUNK_STA_BAND_ROW "\
-<tr><td colspan='2' style='padding-top: 1rem; color: #888; font-size: 0.85rem;'>WPA2 Enterprise (optional)</td></tr>\
-<tr><td>Username</td><td><input type='text' name='ent_username' value='%s' placeholder='Enterprise username'/></td></tr>\
-<tr><td>Identity</td><td><input type='text' name='ent_identity' value='%s' placeholder='Optional (defaults to username)'/></td></tr>\
-<tr><td>EAP Method</td><td><select name='eap_method'>\
-<option value='0' %s>Auto</option>\
-<option value='1' %s>PEAP</option>\
-<option value='2' %s>TTLS</option>\
-<option value='3' %s>TLS</option>\
-</select></td></tr>\
-<tr><td>TTLS Phase 2</td><td><select name='ttls_phase2'>\
-<option value='0' %s>MSCHAPv2</option>\
-<option value='1' %s>MSCHAP</option>\
-<option value='2' %s>PAP</option>\
-<option value='3' %s>CHAP</option>\
-</select></td></tr>\
-<tr><td>Options</td><td>\
-<input type='checkbox' name='cert_bundle' value='1' %s> <span style='color:#888;font-size:0.85rem;'>Use CA cert bundle</span><br>\
-<input type='checkbox' name='no_time_chk' value='1' %s> <span style='color:#888;font-size:0.85rem;'>Skip cert time check</span>\
-</td></tr>\
 <tr><td>MAC Address</td><td><input type='text' name='sta_mac' value='%s' placeholder='AA:BB:CC:DD:EE:FF'/></td></tr>\
 <tr><td></td><td><input type='submit' value='Save &amp; Reboot' class='ok-button'/></td></tr>\
 </table>\

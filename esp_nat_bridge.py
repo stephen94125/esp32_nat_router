@@ -297,12 +297,6 @@ async def wifi_scan() -> str:
 async def set_sta(
     ssid: str,
     password: str = "",
-    enterprise_username: str = "",
-    enterprise_identity: str = "",
-    eap_method: int = -1,
-    ttls_phase2: int = -1,
-    cert_bundle: int = -1,
-    no_time_check: int = -1,
 ) -> str:
     """Set which WiFi network the router connects to for internet access. Requires restart.
 
@@ -312,27 +306,9 @@ async def set_sta(
     Args:
         ssid: Name of the WiFi network to connect to.
         password: WiFi password (leave empty for open networks).
-        enterprise_username: Username for corporate/university WPA2-Enterprise networks (optional).
-        enterprise_identity: Identity for WPA2-Enterprise (optional, defaults to username).
-        eap_method: Enterprise auth method: 0=Auto, 1=PEAP, 2=TTLS, 3=TLS. -1 to skip.
-        ttls_phase2: Enterprise TTLS inner method: 0=MSCHAPv2, 1=MSCHAP, 2=PAP, 3=CHAP. -1 to skip.
-        cert_bundle: Verify server certificate: 0=no, 1=yes. -1 to skip.
-        no_time_check: Skip certificate date validation: 0=no, 1=yes. -1 to skip.
     """
     _require(ssid, "ssid")
     cmd = f"set_sta {ssid} {password}"
-    if enterprise_username:
-        cmd += f" -u {enterprise_username}"
-    if enterprise_identity:
-        cmd += f" -a {enterprise_identity}"
-    if eap_method >= 0:
-        cmd += f" -e {eap_method}"
-    if ttls_phase2 >= 0:
-        cmd += f" -p {ttls_phase2}"
-    if cert_bundle >= 0:
-        cmd += f" -c {cert_bundle}"
-    if no_time_check >= 0:
-        cmd += f" -t {no_time_check}"
     return await _cmd(cmd)
 
 

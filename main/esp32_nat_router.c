@@ -95,14 +95,6 @@ uint8_t ap_authmode = 0;
 uint8_t ap_channel = 0;
 #endif
 
-#if !CONFIG_ETH_UPLINK
-// WPA2-Enterprise settings
-int32_t eap_method = 0;          // 0=Auto, 1=PEAP, 2=TTLS, 3=TLS
-int32_t ttls_phase2 = 0;         // 0=MSCHAPv2, 1=MSCHAP, 2=PAP, 3=CHAP
-int32_t use_cert_bundle = 0;     // 0=off, 1=on
-int32_t disable_time_check = 0;  // 0=off, 1=on
-#endif
-
 #if WIFI_HAS_5GHZ
 // STA band preference (0=auto, 1=2.4GHz, 2=5GHz)
 uint8_t sta_band = STA_BAND_AUTO;
@@ -825,7 +817,7 @@ void eth_init(const char* static_ip, const char* subnet_mask, const char* gatewa
     ESP_LOGI(TAG, "Ethernet-to-WiFi NAT Router initialized");
 }
 #else
-void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, const char* ent_identity, const char* passwd, const char* static_ip, const char* subnet_mask, const char* gateway_addr, const uint8_t* ap_mac, const char* ap_ssid, const char* ap_passwd, const char* ap_ip)
+void wifi_init(const uint8_t* mac, const char* ssid, const char* passwd, const char* static_ip, const char* subnet_mask, const char* gateway_addr, const uint8_t* ap_mac, const char* ap_ssid, const char* ap_passwd, const char* ap_ip)
 {
     esp_netif_dns_info_t dnsserver;
     // esp_netif_dns_info_t dnsinfo;
@@ -905,40 +897,9 @@ void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, c
         //Set SSID
         strlcpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
         //Set password
-        if(strlen(ent_username) == 0) {
-            ESP_LOGI(TAG, "STA regular connection");
-            strlcpy((char*)wifi_config.sta.password, passwd, sizeof(wifi_config.sta.password));
-        }
+        ESP_LOGI(TAG, "STA regular connection");
+        strlcpy((char*)wifi_config.sta.password, passwd, sizeof(wifi_config.sta.password));
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
-        if(strlen(ent_username) != 0) {
-            ESP_LOGI(TAG, "STA enterprise connection");
-            if(strlen(ent_identity) != 0) {
-                esp_eap_client_set_identity((uint8_t *)ent_identity, strlen(ent_identity));
-            } else {
-                esp_eap_client_set_identity((uint8_t *)ent_username, strlen(ent_username));
-            }
-            esp_eap_client_set_username((uint8_t *)ent_username, strlen(ent_username));
-            esp_eap_client_set_password((uint8_t *)passwd, strlen(passwd));
-
-            // Set TTLS phase 2 method
-            if (ttls_phase2 >= 0 && ttls_phase2 <= 3) {
-                esp_eap_client_set_ttls_phase2_method(ttls_phase2);
-            }
-
-            // Use CA certificate bundle for server validation
-#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-            if (use_cert_bundle) {
-                esp_eap_client_use_default_cert_bundle(true);
-            }
-#endif
-
-            // Disable certificate time check
-            if (disable_time_check) {
-                esp_eap_client_set_disable_time_check(true);
-            }
-
-            esp_wifi_sta_enterprise_enable();
-        }
 
         if (mac != NULL) {
             ESP_ERROR_CHECK(esp_wifi_set_mac(ESP_IF_WIFI_STA, mac));
@@ -987,8 +948,6 @@ void wifi_init(const uint8_t* mac, const char* ssid, const char* ent_username, c
 #if !CONFIG_ETH_UPLINK
 uint8_t* mac = NULL;
 char* ssid = NULL;
-char* ent_username = NULL;
-char* ent_identity = NULL;
 char* passwd = NULL;
 #endif
 char* static_ip = NULL;
@@ -1049,14 +1008,6 @@ void app_main(void)
     get_config_param_str("ssid", &ssid);
     if (ssid == NULL) {
         ssid = param_set_default("");
-    }
-    get_config_param_str("ent_username", &ent_username);
-    if (ent_username == NULL) {
-        ent_username = param_set_default("");
-    }
-    get_config_param_str("ent_identity", &ent_identity);
-    if (ent_identity == NULL) {
-        ent_identity = param_set_default("");
     }
     get_config_param_str("passwd", &passwd);
     if (passwd == NULL) {
@@ -1195,26 +1146,6 @@ void app_main(void)
 #endif
 
 #if !CONFIG_ETH_UPLINK
-    // Load WPA2-Enterprise settings from NVS (defaults: 0)
-    int eap_setting = 0;
-    if (get_config_param_int("eap_method", &eap_setting) == ESP_OK) {
-        eap_method = (int32_t)eap_setting;
-    }
-    int phase2_setting = 0;
-    if (get_config_param_int("ttls_phase2", &phase2_setting) == ESP_OK) {
-        ttls_phase2 = (int32_t)phase2_setting;
-    }
-    int cert_bundle_setting = 0;
-    if (get_config_param_int("cert_bundle", &cert_bundle_setting) == ESP_OK) {
-        use_cert_bundle = (int32_t)cert_bundle_setting;
-    }
-    int time_check_setting = 0;
-    if (get_config_param_int("no_time_chk", &time_check_setting) == ESP_OK) {
-        disable_time_check = (int32_t)time_check_setting;
-    }
-#endif
-
-#if !CONFIG_ETH_UPLINK
     /* Create one-shot timer for STA reconnect backoff */
     const esp_timer_create_args_t reconnect_timer_args = {
         .callback = sta_reconnect_timer_cb,
@@ -1226,7 +1157,7 @@ void app_main(void)
 #if CONFIG_ETH_UPLINK
     eth_init(static_ip, subnet_mask, gateway_addr, ap_mac, ap_ssid, ap_passwd, ap_ip);
 #else
-    wifi_init(mac, ssid, ent_username, ent_identity, passwd, static_ip, subnet_mask, gateway_addr, ap_mac, ap_ssid, ap_passwd, ap_ip);
+    wifi_init(mac, ssid, passwd, static_ip, subnet_mask, gateway_addr, ap_mac, ap_ssid, ap_passwd, ap_ip);
 #endif
 
     // Initialise addressable LED strip (if configured)

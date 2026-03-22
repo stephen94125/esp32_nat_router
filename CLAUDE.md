@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ESP32 NAT Router - WiFi-based NAT router firmware for ESP32 microcontrollers. Enables WiFi range extension, guest networks, WPA2-Enterprise conversion, and port mapping.
+ESP32 NAT Router - WiFi-based NAT router firmware for ESP32 microcontrollers. Enables WiFi range extension, guest networks and port mapping.
 
 ## Build Commands
 

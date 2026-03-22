@@ -1139,6 +1139,7 @@ static esp_err_t config_get_handler(httpd_req_t *req)
             if (httpd_query_key_value(buf, "ssid", param1, sizeof(param1)) == ESP_OK) {
                 ESP_LOGI(TAG, "Found URL query parameter => ssid=%s", param1);
                 preprocess_string(param1);
+                
                 if (httpd_query_key_value(buf, "password", param2, sizeof(param2)) == ESP_OK) {
                     preprocess_string(param2);
 
@@ -1146,107 +1147,55 @@ static esp_err_t config_get_handler(httpd_req_t *req)
                     if (strlen(param2) == 0) {
                         strlcpy(param2, passwd, sizeof(param2));
                     }
-                    if (httpd_query_key_value(buf, "ent_username", param3, sizeof(param3)) == ESP_OK) {
-                        ESP_LOGI(TAG, "Found URL query parameter => ent_username=%s", param3);
-                        preprocess_string(param3);
-                        if (httpd_query_key_value(buf, "ent_identity", param4, sizeof(param4)) == ESP_OK) {
-                            ESP_LOGI(TAG, "Found URL query parameter => ent_identity=%s", param4);
-                            preprocess_string(param4);
 
-                            int argc = 0;
-                            char* argv[7];
-                            argv[argc++] = "set_sta";
-                            //SSID
-                            argv[argc++] = param1;
-                            //Password
-                            argv[argc++] = param2;
-                            //Username
-                            if(strlen(param3)) {
-                                argv[argc++] = "-u";
-                                argv[argc++] = param3;
-                            }
-                            //Identity
-                            if(strlen(param4)) {
-                                argv[argc++] = "-a";
-                                argv[argc++] = param4;
-                            }
+                    // --- 閹割完成：直接組裝純淨版 set_sta 指令 ---
+                    int argc = 0;
+                    char* argv[3]; // 只留 3 個參數就夠了
+                    argv[argc++] = "set_sta";
+                    //SSID
+                    argv[argc++] = param1;
+                    //Password
+                    argv[argc++] = param2;
 
-                            set_sta(argc, argv);
-
-                            // Save WPA2-Enterprise settings to NVS
-                            {
-                                char eap_param[4] = "";
-                                int eap_val = 0;
-                                if (httpd_query_key_value(buf, "eap_method", eap_param, sizeof(eap_param)) == ESP_OK) {
-                                    eap_val = atoi(eap_param);
-                                }
-                                set_config_param_int("eap_method", eap_val);
-                                eap_method = eap_val;
-
-                                char phase2_param[4] = "";
-                                int phase2_val = 0;
-                                if (httpd_query_key_value(buf, "ttls_phase2", phase2_param, sizeof(phase2_param)) == ESP_OK) {
-                                    phase2_val = atoi(phase2_param);
-                                }
-                                set_config_param_int("ttls_phase2", phase2_val);
-                                ttls_phase2 = phase2_val;
-
-                                // Checkboxes: present = 1, absent = 0
-                                char cb_param[4] = "";
-                                int cb_val = 0;
-                                if (httpd_query_key_value(buf, "cert_bundle", cb_param, sizeof(cb_param)) == ESP_OK) {
-                                    cb_val = 1;
-                                }
-                                set_config_param_int("cert_bundle", cb_val);
-                                use_cert_bundle = cb_val;
-
-                                int tc_val = 0;
-                                if (httpd_query_key_value(buf, "no_time_chk", cb_param, sizeof(cb_param)) == ESP_OK) {
-                                    tc_val = 1;
-                                }
-                                set_config_param_int("no_time_chk", tc_val);
-                                disable_time_check = tc_val;
-                            }
+                    set_sta(argc, argv);
 
 #if WIFI_HAS_5GHZ
-                            // Save STA band preference
-                            {
-                                char band_param[4] = "";
-                                int band_val = STA_BAND_AUTO;
-                                if (httpd_query_key_value(buf, "sta_band", band_param, sizeof(band_param)) == ESP_OK) {
-                                    band_val = atoi(band_param);
-                                    if (band_val < STA_BAND_AUTO || band_val > STA_BAND_5G)
-                                        band_val = STA_BAND_AUTO;
-                                }
-                                set_config_param_int("sta_band", band_val);
-                                sta_band = (uint8_t)band_val;
-                            }
+                    // Save STA band preference
+                    {
+                        char band_param[4] = "";
+                        int band_val = STA_BAND_AUTO;
+                        if (httpd_query_key_value(buf, "sta_band", band_param, sizeof(band_param)) == ESP_OK) {
+                            band_val = atoi(band_param);
+                            if (band_val < STA_BAND_AUTO || band_val > STA_BAND_5G)
+                                band_val = STA_BAND_AUTO;
+                        }
+                        set_config_param_int("sta_band", band_val);
+                        sta_band = (uint8_t)band_val;
+                    }
 #endif
 
-                            // Check for optional STA MAC address
-                            if (httpd_query_key_value(buf, "sta_mac", param5, sizeof(param5)) == ESP_OK && strlen(param5) > 0) {
-                                ESP_LOGI(TAG, "Found URL query parameter => sta_mac=%s", param5);
-                                preprocess_string(param5);
-                                // Parse MAC address string (format: AA:BB:CC:DD:EE:FF)
-                                unsigned int mac[6];
-                                if (sscanf(param5, "%02x:%02x:%02x:%02x:%02x:%02x",
-                                           &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
-                                    char mac_str[6][4];
-                                    for (int i = 0; i < 6; i++) {
-                                        sprintf(mac_str[i], "%d", mac[i]);
-                                    }
-                                    char* mac_argv[7];
-                                    mac_argv[0] = "set_sta_mac";
-                                    for (int i = 0; i < 6; i++) {
-                                        mac_argv[i+1] = mac_str[i];
-                                    }
-                                    set_sta_mac(7, mac_argv);
-                                }
+                    // Check for optional STA MAC address
+                    if (httpd_query_key_value(buf, "sta_mac", param5, sizeof(param5)) == ESP_OK && strlen(param5) > 0) {
+                        ESP_LOGI(TAG, "Found URL query parameter => sta_mac=%s", param5);
+                        preprocess_string(param5);
+                        // Parse MAC address string (format: AA:BB:CC:DD:EE:FF)
+                        unsigned int mac[6];
+                        if (sscanf(param5, "%02x:%02x:%02x:%02x:%02x:%02x",
+                                   &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
+                            char mac_str[6][4];
+                            for (int i = 0; i < 6; i++) {
+                                sprintf(mac_str[i], "%d", mac[i]);
                             }
-
-                            esp_timer_start_once(restart_timer, 500000);
+                            char* mac_argv[7];
+                            mac_argv[0] = "set_sta_mac";
+                            for (int i = 0; i < 6; i++) {
+                                mac_argv[i+1] = mac_str[i];
+                            }
+                            set_sta_mac(7, mac_argv);
                         }
                     }
+
+                    esp_timer_start_once(restart_timer, 500000);
                 }
             }
 #endif
@@ -1372,8 +1321,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
 
     /* Escape values for HTML */
     char* safe_ssid = html_escape(prefill_ssid[0] ? prefill_ssid : ssid);
-    char* safe_ent_username = html_escape(ent_username);
-    char* safe_ent_identity = html_escape(ent_identity);
 #endif
     char* safe_ap_ssid = html_escape(ap_ssid);
 
@@ -1391,15 +1338,12 @@ static esp_err_t config_get_handler(httpd_req_t *req)
     if (safe_ap_ssid == NULL ||
 #if !CONFIG_ETH_UPLINK
         safe_ssid == NULL ||
-        safe_ent_username == NULL || safe_ent_identity == NULL ||
 #endif
         ap_ip_str == NULL) {
         ESP_LOGE(TAG, "Failed to escape HTML strings");
         free(safe_ap_ssid);
 #if !CONFIG_ETH_UPLINK
         free(safe_ssid);
-        free(safe_ent_username);
-        free(safe_ent_identity);
 #endif
         free(ap_ip_str);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
@@ -1523,12 +1467,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
         sta_band == STA_BAND_2G ? "selected" : "",
         sta_band == STA_BAND_5G ? "selected" : "",
 #endif
-        safe_ent_username, safe_ent_identity,
-        eap_method == 0 ? "selected" : "", eap_method == 1 ? "selected" : "",
-        eap_method == 2 ? "selected" : "", eap_method == 3 ? "selected" : "",
-        ttls_phase2 == 0 ? "selected" : "", ttls_phase2 == 1 ? "selected" : "",
-        ttls_phase2 == 2 ? "selected" : "", ttls_phase2 == 3 ? "selected" : "",
-        use_cert_bundle ? "checked" : "", disable_time_check ? "checked" : "",
         sta_mac_str);
     httpd_resp_send_chunk(req, section, HTTPD_RESP_USE_STRLEN);
 #endif
@@ -1590,8 +1528,6 @@ static esp_err_t config_get_handler(httpd_req_t *req)
     free(safe_ap_ssid);
 #if !CONFIG_ETH_UPLINK
     free(safe_ssid);
-    free(safe_ent_username);
-    free(safe_ent_identity);
 #endif
     free(ap_ip_str);
 
@@ -2400,7 +2336,6 @@ static const char* web_auth_mode_to_str(wifi_auth_mode_t authmode)
         case WIFI_AUTH_WPA_WPA2_PSK:    return "WPA/WPA2";
         case WIFI_AUTH_WPA3_PSK:        return "WPA3";
         case WIFI_AUTH_WPA2_WPA3_PSK:   return "WPA2/WPA3";
-        case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-Ent";
         default:                        return "Unknown";
     }
 }
